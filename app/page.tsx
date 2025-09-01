@@ -381,7 +381,7 @@ const showExample = () => {
                 <li>✅ Historique & comparaisons de versions</li>
               </ul>
               <div className="mt-4">
-                <a href="#demo" className="inline-flex items-center rounded-[14px] bg-white font-semibold px-4 py-2 border border-slate-200 hover:bg-slate-50">Parler à un humain</a>
+                <a href="#demo" className="inline-flex items-center rounded-[14px] bg-white font-semibold px-4 py-2 border border-slate-200 hover:bg-slate-50">Démarrer un audit</a>
               </div>
             </div>
           </div>
