@@ -19,7 +19,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 
 async function getPdfText(file: File): Promise<string> {
   const ab = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+const pdf = await (pdfjsLib as any).getDocument({ data: ab, useWorker: false }).promise;
   let text = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
