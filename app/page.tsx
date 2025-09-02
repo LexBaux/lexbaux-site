@@ -9,6 +9,24 @@ import Link from "next/link";
 import GeneralInfoCard from "../components/GeneralInfoCard";
 import { GeneralInfo, extractGeneralInfoFromAnalysis } from "../types/general-info";
 
+// @ts-ignore
+import * as pdfjsLib from "pdfjs-dist/build/pdf";
+// @ts-ignore
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker?url";
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
+async function getPdfText(file: File): Promise<string> {
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let text = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map((it: any) => it.str).join(" ") + "\n";
+  }
+  return text;
+}
+
 
 // --- Rapport d'exemple très détaillé (même forme que /api/analyze) ---
 const EXAMPLE_REPORT = {
@@ -140,8 +158,12 @@ const showExample = () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `Erreur serveur (${res.status})`);
 
-      setReport(data);
-      setGeneralInfo(extractGeneralInfoFromAnalysis(data));
+const rawText = await getPdfText(file);               // extrait le texte du PDF
+const dataWithText = { ...data, rawText };            // fusionne avec l’analyse
+
+setReport(dataWithText);                              // met à jour le rapport complet
+setGeneralInfo(extractGeneralInfoFromAnalysis(dataWithText));  // extrait infos générales
+
     } catch (err: any) {
       setErrorMsg(err?.message || "Erreur inconnue");
     } finally {
