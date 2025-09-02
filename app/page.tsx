@@ -6,6 +6,10 @@ import ReportView from "@/components/ReportView";
 
 import Link from "next/link";
 
+import GeneralInfoCard from "../components/GeneralInfoCard";
+import { GeneralInfo, extractGeneralInfoFromAnalysis } from "../types/general-info";
+
+
 // --- Rapport d'exemple très détaillé (même forme que /api/analyze) ---
 const EXAMPLE_REPORT = {
   meta: {
@@ -98,6 +102,8 @@ export default function Page() {
 
 const onPickFile = () => fileInputRef.current?.click();
 
+const [generalInfo, setGeneralInfo] = useState<GeneralInfo>({});
+
 const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const f = e.target.files?.[0] || null;
   setFile(f);
@@ -135,6 +141,7 @@ const showExample = () => {
       if (!res.ok) throw new Error(data?.error || `Erreur serveur (${res.status})`);
 
       setReport(data);
+      setGeneralInfo(extractGeneralInfoFromAnalysis(data));
     } catch (err: any) {
       setErrorMsg(err?.message || "Erreur inconnue");
     } finally {

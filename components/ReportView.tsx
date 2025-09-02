@@ -1,5 +1,9 @@
 "use client";
 
+import GeneralInfoCard from "./GeneralInfoCard"; // même dossier que ReportView.tsx
+import { extractGeneralInfoFromAnalysis } from "../types/general-info"; // dossier frère "types"
+
+
 type Finding = {
   id: string;
   title: string;
@@ -136,6 +140,10 @@ export default function ReportView({ report }: { report: Report }) {
           </div>
         </div>
       </div>
+
+      {/* --- Bloc Informations générales --- */}
+<GeneralInfoCard info={extractGeneralInfoFromAnalysis(report)} />
+
 
       {/* Findings */}
       <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
