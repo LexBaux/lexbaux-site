@@ -11,9 +11,11 @@ import { GeneralInfo, extractGeneralInfoFromAnalysis } from "../types/general-in
 
 // @ts-ignore
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
-// @ts-ignore
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker?url";
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
+// ✅ on pointe vers le worker officiel sur CDN
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
 
 async function getPdfText(file: File): Promise<string> {
   const ab = await file.arrayBuffer();
