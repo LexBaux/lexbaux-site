@@ -12,38 +12,83 @@ export type GeneralInfo = {
   loyerCommercial?: string;
 };
 
-const pick = (m?: RegExpMatchArray | null, i = 1) =>
-  m && m[i] ? m[i].trim().replace(/\s+/g, " ") : undefined;
+// Normalisation agressive : on enlève les retours à la ligne et on compacte les espaces
+function normalize(text: string) {
+  return (text || "")
+    .replace(/\u00A0/g, " ")        // espaces insécables
+    .replace(/\s+/g, " ")           // tout espacement -> un espace
+    .trim();
+}
 
-export function extractGeneralInfoFromText(text: string): GeneralInfo {
-  const t = (text || "").replace(/\u00A0/g, " ");
+// Extrait le segment entre un label et le label suivant
+function extractBetween(text: string, label: string, nextLabels: string[]): string | undefined {
+  const lbl = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const next = nextLabels.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const re = new RegExp(`${lbl}\\s*:?\\s*(.*?)(?:(?:${next})\\s*:|$)`, "i");
+  const m = text.match(re);
+  return m && m[1] ? m[1].trim() : undefined;
+}
 
-  const bailleurLine = t.match(/Bailleur\s*:?\s*(.+?)(?:\n|$)/i);
-  const preneurLine  = t.match(/Preneur\s*:?\s*(.+?)(?:\n|$)/i);
-  const bienLine     = t.match(/Bien\s+loué\s*:?\s*(.+?)(?:\n|$)/i);
-  const destinLine   = t.match(/Destination\s+des\s+locaux\s*:?\s*(.+?)(?:\n|$)/i);
-  const loyerLine    = t.match(/Loyer\s*:?\s*(.+?)(?:\n|$)/i);
-  const pouvoirsLine = t.match(/(représentée?|représenté)\s+par\s+(.+?)(?:\.|\n|$)/i);
+// Cherche RCS/SIREN dans un segment (ou fallback global)
+function extractRCS(segment?: string, fallbackText?: string): string | undefined {
+  const source = (segment || "") + " " + (fallbackText || "");
+  const m = source.match(/\b(?:RCS|SIREN|SIRET)\b[^0-9]*([0-9][0-9 ]{8,})/i);
+  return m && m[1] ? m[1].replace(/\s+/g, " ").trim() : undefined;
+}
 
-  const rcsBailleur  = t.match(/Bailleur[\s\S]*?RCS[^0-9]*([0-9 ]{9,})/i);
-  const rcsPreneur   = t.match(/Preneur[\s\S]*?RCS[^0-9]*([0-9 ]{9,})/i);
-  const formeBailleur = t.match(/Bailleur[\s\S]*?\b(SARL|SASU?|SCI|EURL|SA|SCA|SNC)\b/i);
-  const formePreneur  = t.match(/Preneur[\s\S]*?\b(SARL|SASU?|SCI|EURL|SA|SCA|SNC)\b/i);
+// Cherche forme sociale la plus courante
+function extractForme(segment?: string, fallbackText?: string): string | undefined {
+  const source = (segment || "") + " " + (fallbackText || "");
+  const m = source.match(/\b(SASU|SAS|SARL|EURL|SCI|SA|SNC|SCA)\b/i);
+  return m && m[1] ? m[1].toUpperCase() : undefined;
+}
+
+export function extractGeneralInfoFromText(raw: string) : GeneralInfo {
+  const t = normalize(raw);
+
+  // Ordre des labels tel qu’on les trouve souvent
+  const labels = [
+    "Bailleur",
+    "Preneur",
+    "Bien loué",
+    "Destination des locaux",
+    "Loyer",
+    "Dépôt de garantie",
+    "Durée du bail",
+    "Indexation",
+    "Clause résolutoire"
+  ];
+
+  // Segments
+  const segBailleur = extractBetween(t, "Bailleur", labels.filter(l => l !== "Bailleur"));
+  const segPreneur  = extractBetween(t, "Preneur",  labels.filter(l => l !== "Preneur"));
+  const segBien     = extractBetween(t, "Bien loué", labels.filter(l => l !== "Bien loué"));
+  const segDest     = extractBetween(t, "Destination des locaux", labels.filter(l => l !== "Destination des locaux"));
+  const segLoyer    = extractBetween(t, "Loyer", labels.filter(l => l !== "Loyer"));
+
+  // Nom = segment complet épuré (sans RCS) si présent
+  const cleanName = (s?: string) => s
+    ? s.replace(/\b(?:RCS|SIREN|SIRET)\b[^0-9]*[0-9][0-9 ]{8,}/i, "").trim()
+    : undefined;
+
+  const bailleurNom = cleanName(segBailleur);
+  const preneurNom  = cleanName(segPreneur);
 
   return {
-    bailleurNom: pick(bailleurLine),
-    bailleurForme: pick(formeBailleur),
-    bailleurRCS: pick(rcsBailleur),
-    preneurNom: pick(preneurLine),
-    preneurForme: pick(formePreneur),
-    preneurRCS: pick(rcsPreneur),
-    qualitePouvoirsSignataires: pouvoirsLine ? pick(pouvoirsLine, 0) : undefined,
-    designationBien: pick(bienLine),
-    destinationLocaux: pick(destinLine),
-    loyerCommercial: pick(loyerLine),
+    bailleurNom,
+    bailleurForme: extractForme(segBailleur, t),
+    bailleurRCS: extractRCS(segBailleur, t),
+    preneurNom,
+    preneurForme: extractForme(segPreneur, t),
+    preneurRCS: extractRCS(segPreneur, t),
+    qualitePouvoirsSignataires: (segBailleur || segPreneur || "").match(/représenté(?:e)? par[^.]+/i)?.[0],
+    designationBien: segBien,
+    destinationLocaux: segDest,
+    loyerCommercial: segLoyer
   };
 }
 
+// Compat : on regarde d’abord analysis.rawText si présent
 export function extractGeneralInfoFromAnalysis(analysis: any, raw?: string) {
   const txt = raw || analysis?.rawText || analysis?.fullText || analysis?.text || "";
   return extractGeneralInfoFromText(txt);

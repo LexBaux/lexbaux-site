@@ -158,7 +158,9 @@ const showExample = () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || `Erreur serveur (${res.status})`);
 
-const rawText = await getPdfText(file);               // extrait le texte du PDF
+const rawText = await getPdfText(file);
+console.log("RAW TEXT >>>", rawText.slice(0, 400));
+               // extrait le texte du PDF
 const dataWithText = { ...data, rawText };            // fusionne avec l’analyse
 
 setReport(dataWithText);                              // met à jour le rapport complet
