@@ -5,6 +5,7 @@ import React, { useRef, useState } from "react";
 import ReportView from "@/components/ReportView";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation"; // ← AJOUT
 
 import GeneralInfoCard from "../components/GeneralInfoCard";
 import { GeneralInfo, extractGeneralInfoFromAnalysis } from "../types/general-info";
@@ -16,10 +17,9 @@ import * as pdfjsLib from "pdfjs-dist/build/pdf";
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-
 async function getPdfText(file: File): Promise<string> {
   const ab = await file.arrayBuffer();
-const pdf = await (pdfjsLib as any).getDocument({ data: ab, useWorker: false }).promise;
+  const pdf = await (pdfjsLib as any).getDocument({ data: ab, useWorker: false }).promise;
   let text = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -28,7 +28,6 @@ const pdf = await (pdfjsLib as any).getDocument({ data: ab, useWorker: false }).
   }
   return text;
 }
-
 
 // --- Rapport d'exemple très détaillé (même forme que /api/analyze) ---
 const EXAMPLE_REPORT = {
@@ -111,6 +110,8 @@ const EXAMPLE_REPORT = {
 };
 
 export default function Page() {
+  const router = useRouter(); // ← AJOUT
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // États nécessaires pour brancher l’API (n’altèrent pas le visuel)
@@ -120,54 +121,40 @@ export default function Page() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [report, setReport] = useState<any | null>(null);
 
-const onPickFile = () => fileInputRef.current?.click();
+  const onPickFile = () => fileInputRef.current?.click();
 
-const [generalInfo, setGeneralInfo] = useState<GeneralInfo>({});
+  const [generalInfo, setGeneralInfo] = useState<GeneralInfo>({});
 
-const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const f = e.target.files?.[0] || null;
-  setFile(f);
-  setFileName(f ? f.name : "");
-  setReport(null);
-  setErrorMsg(null);
-};
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null;
+    setFile(f);
+    setFileName(f ? f.name : "");
+    setReport(null);
+    setErrorMsg(null);
+  };
 
-const showExample = () => {
-  setReport(EXAMPLE_REPORT);
-  setFileName("exemple_bail.pdf");
-  setFile(null);
-  setTimeout(() => {
-    document
-      .getElementById("report-view")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, 0);
-};
+  // AVANT: setReport + scroll
+  // APRÈS: simple redirection vers /rapport
+  const showExample = () => {
+    router.push("/rapport?file=exemple_bail.pdf");
+  };
 
+  // AVANT: appel API + pdfjs + setReport
+  // APRÈS: même UX (loader), puis redirection vers /rapport
   async function onAnalyze() {
     try {
       setErrorMsg(null);
-      setReport(null);
       if (!file) {
         setErrorMsg("Aucun fichier sélectionné.");
         return;
       }
-
-      const formData = new FormData();
-      formData.append("file", file); // clé attendue par /api/analyze
-
       setLoading(true);
-      const res = await fetch("/api/analyze", { method: "POST", body: formData });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `Erreur serveur (${res.status})`);
 
-const rawText = await getPdfText(file);
-console.log("RAW TEXT >>>", rawText.slice(0, 400));
-               // extrait le texte du PDF
-const dataWithText = { ...data, rawText };            // fusionne avec l’analyse
+      // petit délai pour garder l’effet “analyse”
+      await new Promise((r) => setTimeout(r, 700));
 
-setReport(dataWithText);                              // met à jour le rapport complet
-setGeneralInfo(extractGeneralInfoFromAnalysis(dataWithText));  // extrait infos générales
-
+      const name = fileName || "bail.pdf";
+      router.push(`/rapport?file=${encodeURIComponent(name)}`);
     } catch (err: any) {
       setErrorMsg(err?.message || "Erreur inconnue");
     } finally {
@@ -204,8 +191,8 @@ setGeneralInfo(extractGeneralInfoFromAnalysis(dataWithText));  // extrait infos 
             <a href="#pricing" className="ml-4 hover:underline">Tarifs</a>
             <a href="#faq" className="ml-4 hover:underline">FAQ</a>
             <Link href="/mentions-legales" className="ml-4 hover:underline">
-  Mentions légales
-</Link>
+              Mentions légales
+            </Link>
           </nav>
         </div>
       </header>
@@ -228,18 +215,17 @@ setGeneralInfo(extractGeneralInfoFromAnalysis(dataWithText));  // extrait infos 
               Déposer un bail (PDF)
             </a>
             {report && (
-  <div id="report-view" className="mt-8">
-    <ReportView report={report} />
-  </div>
-)}
+              <div id="report-view" className="mt-8">
+                <ReportView report={report} />
+              </div>
+            )}
 
-           <button
-  onClick={showExample}
-  className="inline-flex items-center gap-2 rounded-[14px] bg-white font-semibold px-4 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50"
->
-  Voir un exemple de rapport
-</button>
-
+            <button
+              onClick={showExample}
+              className="inline-flex items-center gap-2 rounded-[14px] bg-white font-semibold px-4 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50"
+            >
+              Voir un exemple de rapport
+            </button>
           </div>
           <div className="mt-4 flex flex-wrap gap-4 text-slate-600 text-[15px]">
             {["RGPD","Données chiffrées","Rapport en 10 min"].map((txt) => (
@@ -316,7 +302,6 @@ setGeneralInfo(extractGeneralInfoFromAnalysis(dataWithText));  // extrait infos 
                 </div>
               )}
 
-              
             </div>
           </div>
         </div>
@@ -414,7 +399,7 @@ setGeneralInfo(extractGeneralInfoFromAnalysis(dataWithText));  // extrait infos 
                 <li>✅ Historique & comparaisons de versions</li>
               </ul>
               <div className="mt-4">
-               <a href="#uploader" className="inline-flex items-center rounded-[14px] bg-orange-600 text-white font-semibold px-4 py-2 border border-orange-600 hover:bg-orange-700">Démarrer un audit</a>
+                <a href="#uploader" className="inline-flex items-center rounded-[14px] bg-orange-600 text-white font-semibold px-4 py-2 border border-orange-600 hover:bg-orange-700">Démarrer un audit</a>
               </div>
             </div>
           </div>
@@ -434,7 +419,7 @@ setGeneralInfo(extractGeneralInfoFromAnalysis(dataWithText));  // extrait infos 
       <section id="faq" className="py-14">
         <div className="container mx-auto max-w-[920px] px-5">
           <h2 className="text-3xl font-bold">Questions fréquentes</h2>
-          <div className="mt-5 space-y-3">
+        <div className="mt-5 space-y-3">
             {[
               ["Est-ce un conseil juridique ?", "Non. C’est un outil d’analyse et d’aide à la décision. Pour une consultation individualisée, adressez-vous à un professionnel du droit."],
               ["Quels types de baux sont couverts ?", "Baux commerciaux standards (3-6-9), dérogatoires/temporaires en V1. D’autres baux seront ajoutés progressivement."],
@@ -471,12 +456,11 @@ setGeneralInfo(extractGeneralInfoFromAnalysis(dataWithText));  // extrait infos 
             <strong>LexBaux</strong>
           </div>
           <div className="text-right text-sm text-slate-500">
-  © {new Date().getFullYear()}{" "}
-  <a href="/mentions-legales" className="underline hover:text-slate-700">
-    LexBaux — Tous droits réservés
-  </a>
-</div>
-
+            © {new Date().getFullYear()}{" "}
+            <a href="/mentions-legales" className="underline hover:text-slate-700">
+              LexBaux — Tous droits réservés
+            </a>
+          </div>
         </div>
       </footer>
     </main>
