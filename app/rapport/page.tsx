@@ -1,6 +1,9 @@
 // app/rapport/page.tsx
 "use client";
 
+// 👇 Empêche le prerender statique et évite l'erreur liée à useSearchParams
+export const dynamic = "force-dynamic";
+
 import { useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import GeneralInfoCard from "@/components/GeneralInfoCard";
