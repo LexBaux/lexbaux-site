@@ -1,5 +1,8 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 import React, { useRef, useState } from "react";
 
 import ReportView from "@/components/ReportView";
@@ -10,16 +13,31 @@ import { useRouter } from "next/navigation"; // ← AJOUT
 import GeneralInfoCard from "../components/GeneralInfoCard";
 import { GeneralInfo, extractGeneralInfoFromAnalysis } from "../types/general-info";
 
-// @ts-ignore
-import * as pdfjsLib from "pdfjs-dist/build/pdf";
+// === Chargement dynamique de PDF.js côté client (une seule fois) ===
+let pdfjsLib: any | null = null;
 
-// ✅ on pointe vers le worker officiel sur CDN
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+async function ensurePdfjs() {
+  if (pdfjsLib) return pdfjsLib;
+  if (typeof window === "undefined") return null; // sécurité SSR
+
+  // @ts-ignore - import dynamique, TypeScript ne connaît pas le chemin ESM
+  const mod = await import("pdfjs-dist/legacy/build/pdf");
+  pdfjsLib = (mod as any).default ?? mod; // gère les variantes d'export
+
+  // Worker officiel sur CDN (évite l'erreur « DOMMatrix is not defined » côté build)
+  (pdfjsLib as any).GlobalWorkerOptions.workerSrc =
+    `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${(pdfjsLib as any).version}/pdf.worker.min.js`;
+
+  return pdfjsLib;
+}
 
 async function getPdfText(file: File): Promise<string> {
+  const lib = await ensurePdfjs();
+  if (!lib) throw new Error("PDF.js indisponible côté serveur");
+
   const ab = await file.arrayBuffer();
-  const pdf = await (pdfjsLib as any).getDocument({ data: ab, useWorker: false }).promise;
+  const pdf = await (lib as any).getDocument({ data: ab, useWorker: false }).promise;
+
   let text = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -28,6 +46,7 @@ async function getPdfText(file: File): Promise<string> {
   }
   return text;
 }
+
 
 // --- Rapport d'exemple très détaillé (même forme que /api/analyze) ---
 const EXAMPLE_REPORT = {
